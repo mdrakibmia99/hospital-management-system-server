@@ -14,14 +14,12 @@ app.use(cors());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
-// mongoDB connectivity
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.9gt71.mongodb.net/myFirstDatabase?retryWrites=true&w=majority`;
-const client = new MongoClient(uri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverApi: ServerApiVersion.v1
-});
+// csc2dW010kbGuude
+// doctor_admin
 
+
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.ypc0m.mongodb.net/?retryWrites=true&w=majority`;
+const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 function verifyJWT(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
@@ -45,7 +43,9 @@ async function run() {
         const userCollection = client.db("doctorsPortal").collection("user");
         const doctorCollection = client.db("doctorsPortal").collection("doctors");
         const paymentCollection = client.db('doctorsPortal').collection('payments');
-        console.log('doctors portal connected successfully!');
+        const userReviewsCollection = client.db("doctorsPortal").collection("userReviews");
+        const oncologistsCollection = client.db("doctorsPortal").collection("oncologists");
+        console.log('hospital connected successfully!');
 
         const verifyAdmin = async(req, res, next) => {
             const requester = req.decoded.email;
@@ -57,14 +57,7 @@ async function run() {
             }
         };
 
-        /**
-         * API naming convention
-         * app.get('/bookings') // get all bookings within a specific collection
-         * app.get('/booking/:id') // get a specific booking within a specific collection
-         * app.post('/booking') // add a new booking within a specific collection
-         * app.patch('/booking/:id') // update a specific booking within a specific collection
-         * app.delete('/booking/:id') // delete a specific booking from a specific collection
-        */
+       
 
         // find services
         app.get('/services', async (req, res) => {
@@ -85,6 +78,7 @@ async function run() {
             }
 
             const result = await bookingCollection.insertOne(booking);
+            const result1 = await oncologistsCollection.insertOne(booking);
 
             return res.send({ success: true, result });
         })
@@ -106,20 +100,11 @@ async function run() {
         // service based on service id
         app.get('/booking/:id', verifyJWT, async (req, res) => {
             res.send(await bookingCollection.findOne({ _id: ObjectId(req.params.id) }));
-            // const id = req.params.id;
-            // const query = { _id: ObjectId(id) };
-            // const booking = await bookingCollection.findOne(query);
-            // res.send(booking);
+         
         })
 
-        /**
-         * find bookings
-         * this is not the proper way
-         * it's risky but for learning purpose it's okay
-         * should have to learn in advance way
-         * after learning mongodb properly then do following:
-         * use aggregate function, lookup, pipeline, match, group
-        */
+   
+
         app.get('/available', async (req, res) => {
             const date = req.query.date;
 
@@ -178,6 +163,16 @@ async function run() {
             res.send({ admin: isAdmin });
         })
 
+        // get doctors 
+        app.get('/doctor/:email', async (req, res) => {
+            const email = req.params.email;
+            const user = await userCollection.findOne({ email: email });
+            const isDoctor = user.role === 'doctor';
+            res.send({ doctor: isDoctor });
+        })
+
+        
+
         // display users
         app.get('/user', verifyJWT, async (req, res) => {
             const users = await userCollection.find({}).toArray();
@@ -198,10 +193,20 @@ async function run() {
             const result = await doctorCollection.insertOne(doctor);
             res.send(result);
         })
+        // oncologistsCollection 
+        app.post('/oncologists', async (req, res) => {
+            const doctor = req.body;
+            const result = await oncologistsCollection.insertOne(doctor);
+            res.send(result);
+        })
 
         // display all doctors
         app.get('/doctor', verifyJWT, verifyAdmin, async (req, res) => {
             const doctors = await doctorCollection.find({}).toArray();
+            res.send(doctors);
+        })
+        app.get('/oncologists', async (req, res) => {
+            const doctors = await oncologistsCollection.find({}).toArray();
             res.send(doctors);
         })
 
@@ -227,17 +232,7 @@ async function run() {
             res.send({ clientSecret: paymentIntent.client_secret });
         })
 
-        // app.post('/create-payment-intent', verifyJWT, async (req, res) => {
-        //     const service = req.body;
-        //     const price = service.price;
-        //     const amount = price * 100;
-        //     const paymentIntent = await stripe.paymentIntents.create({
-        //         amount: amount,
-        //         currency: 'usd',
-        //         payment_method_types: ['card']
-        //     });
-        //     res.send({ clientSecret: paymentIntent.client_secret })
-        // });
+      
 
         // add payment status and transaction id
         app.patch('/booking/:id', verifyJWT, async (req, res) => {
@@ -255,6 +250,26 @@ async function run() {
             const updatedBooking = await bookingCollection.updateOne(filter, updatedDoc);
             res.send(updatedBooking);
         })
+ 
+        // this api for get review info 
+        app.get('/reviews', async (req, res) => {
+            const reviews = await userReviewsCollection.find({}).toArray();
+            res.send(reviews);
+        })
+
+        // add user review
+        app.put('/reviews/:email', async (req, res) => {
+            const reviewerEmail = req.params.email;
+            const userReview = req.body;
+
+            const filter = { reviewerEmail: reviewerEmail };
+            const options = { upsert: true };
+            const updateDoc = {
+                $set: userReview
+            };
+            const usersReview = await userReviewsCollection.updateOne(filter, updateDoc, options);
+            res.send(usersReview);
+        })
 
     } finally {
         // client.close();
@@ -263,9 +278,9 @@ async function run() {
 run().catch(console.dir);
 
 app.get('/', (req, res) => {
-    res.send('Doctors Portal backend started!')
+    res.send('Hospital management backend started!')
 });
 
 app.listen(port, () => {
-    console.log(`Doctors Portal backend connected on port ${port}`)
+    console.log(`hospital management backend connected on port ${port}`)
 });
